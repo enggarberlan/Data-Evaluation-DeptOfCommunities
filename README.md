@@ -79,10 +79,10 @@ The analysis examines whether participants experienced improvements following pr
 
 Python and Matplotlib are used to produce visual summaries of key findings, including:
 
-- average outcome improvement (output/average_outcome_improvement.png)
-- average satisfaction (output/average_satisfaction.png)
-- program completion rates (output/feedback_summary.png)
-- participant feedback (output/program_completion_rate.png)
+- average outcome improvement ![Average Outcome Improvement](output/average_outcome_improvement.png)
+- average satisfaction ![Average Satisfaction](output/average_satisfaction.png)
+- program completion rates ![Program Completion Rate](output/program_completion_rate.png)
+- participant feedback ![Participant Feedback](output/feedback_summary.png)
 
 ## Skills Demonstrated
 
