@@ -10,6 +10,10 @@ import matplotlib.pyplot as plt
 # ==========================================
 df = pd.read_csv("data/community_program.csv")
 
+financial_df = pd.read_csv(
+    "data/program_financials.csv"
+)
+
 print("=== DATASET OVERVIEW ===")
 print(df.head())
 
@@ -25,10 +29,23 @@ print(df.duplicated().sum())
 print("\n=== DESCRIPTIVE STATISTICS ===")
 print(df.describe())
 
+print("\n=== FINANCIAL DATASET OVERVIEW ===")
+print(financial_df.head())
+
+print("\n=== FINANCIAL DATASET INFORMATION ===")
+financial_df.info()
+
+print("\n=== FINANCIAL DATA MISSING VALUES ===")
+print(financial_df.isnull().sum())
+
+print("\n=== FINANCIAL DATA DUPLICATES ===")
+print(financial_df.duplicated().sum())
+
 # ==========================================
 # 3. DATA CLEANING AND PREPARATION
 # ==========================================
 clean_df = df.copy()
+clean_financial_df = financial_df.copy()
 
 print("\n=== STARTING DATA CLEANING ===")
 
@@ -53,6 +70,33 @@ clean_df["feedback_category"] = (
     clean_df["feedback_category"].str.strip().str.title()
 )
 
+# Convert reporting date to datetime
+clean_df["reporting_date"] = pd.to_datetime(
+    clean_df["reporting_date"],
+    errors="coerce"
+)
+
+# Validate satisfaction scores
+invalid_satisfaction = ~clean_df["satisfaction_score"].between(1, 5)
+
+print(
+    "\nInvalid satisfaction scores:",
+    invalid_satisfaction.sum()
+)
+
+
+# Validate outcome scores
+invalid_outcomes = (
+    ~clean_df["outcome_before"].between(0, 100)
+    | ~clean_df["outcome_after"].between(0, 100)
+)
+
+print(
+    "Invalid outcome scores:",
+    invalid_outcomes.sum()
+)
+
+
 # Remove exact duplicate rows
 before_duplicates = len(clean_df)
 
@@ -63,6 +107,45 @@ after_duplicates = len(clean_df)
 print("\nDuplicates removed:")
 print(before_duplicates - after_duplicates)
 
+# ==========================================
+# CLEAN FINANCIAL DATA
+# ==========================================
+
+clean_financial_df["program_type"] = (
+    clean_financial_df["program_type"]
+    .str.strip()
+    .str.title()
+)
+
+clean_financial_df = (
+    clean_financial_df.drop_duplicates()
+)
+
+invalid_financial = (
+    (clean_financial_df["program_budget"] < 0)
+    | (clean_financial_df["actual_expenditure"] < 0)
+)
+
+print(
+    "\nInvalid financial values:",
+    invalid_financial.sum()
+)
+
+clean_financial_df["calculated_variance"] = (
+    clean_financial_df["program_budget"]
+    - clean_financial_df["actual_expenditure"]
+)
+
+variance_mismatch = (
+    clean_financial_df["budget_variance"]
+    != clean_financial_df["calculated_variance"]
+)
+
+print(
+    "Budget variance mismatches:",
+    variance_mismatch.sum()
+)
+
 
 # ==========================================
 # 4. PROGRAM EVALUATION
@@ -72,6 +155,15 @@ print(before_duplicates - after_duplicates)
 clean_df["outcome_change"] = (
     clean_df["outcome_after"]
     - clean_df["outcome_before"]
+)
+
+# Extract reporting year and quarter
+clean_df["reporting_year"] = (
+    clean_df["reporting_date"].dt.year
+)
+
+clean_df["reporting_quarter"] = (
+    clean_df["reporting_date"].dt.quarter
 )
 
 print("\n=== OUTCOME CHANGES ===")
@@ -99,6 +191,16 @@ print(clean_df.duplicated().sum())
 clean_df.to_csv(
     "data/community_program_clean.csv",
     index=False
+)
+
+clean_financial_df.to_csv(
+    "data/program_financials_clean.csv",
+    index=False
+)
+
+print(
+    "Clean financial dataset saved to "
+    "data/program_financials_clean.csv"
 )
 
 print(
@@ -147,6 +249,28 @@ print(
     ]
 )
 
+# Add program_id to financial records
+financial_db_df = clean_financial_df.merge(
+    programs_df,
+    left_on="program_type",
+    right_on="program_name"
+)
+
+print("\n=== FINANCIAL DATA WITH PROGRAM ID ===")
+print(
+    financial_db_df[
+        [
+            "program_type",
+            "program_id",
+            "reporting_year",
+            "reporting_quarter",
+            "program_budget",
+            "actual_expenditure",
+            "budget_variance"
+        ]
+    ]
+)
+
 
 # ==========================================
 # 6. CREATE AND POPULATE SQLITE DATABASE
@@ -184,15 +308,36 @@ participants_db_df = participants_db_df[
         "outcome_before",
         "outcome_after",
         "outcome_change",
-        "feedback_category"
+        "feedback_category",
+        "reporting_date"
+    ]
+].copy()
+
+# Select columns required by program_financials table
+financial_db_df = financial_db_df[
+    [
+        "program_id",
+        "reporting_year",
+        "reporting_quarter",
+        "program_budget",
+        "actual_expenditure",
+        "budget_variance"
     ]
 ].copy()
 
 
+# Create unique financial IDs
+financial_db_df.insert(
+    0,
+    "financial_id",
+    range(1, len(financial_db_df) + 1)
+)
+
+
 # Clear old data so the script can be run again
+conn.execute("DELETE FROM program_financials")
 conn.execute("DELETE FROM participants")
 conn.execute("DELETE FROM programs")
-
 
 # Insert program data
 programs_df.to_sql(
@@ -206,6 +351,14 @@ programs_df.to_sql(
 # Insert participant data
 participants_db_df.to_sql(
     "participants",
+    conn,
+    if_exists="append",
+    index=False
+)
+
+# Insert financial data
+financial_db_df.to_sql(
+    "program_financials",
     conn,
     if_exists="append",
     index=False
@@ -368,6 +521,210 @@ feedback_summary = pd.read_sql_query(
 
 print("\nFeedback summary:")
 print(feedback_summary)
+
+# ==========================================
+# FINANCIAL PERFORMANCE ANALYSIS
+# ==========================================
+
+query_financial = """
+SELECT
+    pr.program_name,
+    SUM(pf.program_budget) AS total_budget,
+    SUM(pf.actual_expenditure) AS total_expenditure,
+    SUM(pf.budget_variance) AS total_variance
+FROM program_financials AS pf
+JOIN programs AS pr
+    ON pf.program_id = pr.program_id
+GROUP BY pr.program_name
+ORDER BY total_variance DESC;
+"""
+
+financial_by_program = pd.read_sql_query(
+    query_financial,
+    conn
+)
+
+print("\nFinancial performance by program:")
+print(financial_by_program)
+
+query_quarterly_financial = """
+SELECT
+    pr.program_name,
+    pf.reporting_year,
+    pf.reporting_quarter,
+    pf.program_budget,
+    pf.actual_expenditure,
+    pf.budget_variance
+FROM program_financials AS pf
+JOIN programs AS pr
+    ON pf.program_id = pr.program_id
+ORDER BY
+    pr.program_name,
+    pf.reporting_year,
+    pf.reporting_quarter;
+"""
+
+quarterly_financial = pd.read_sql_query(
+    query_quarterly_financial,
+    conn
+)
+
+print("\nQuarterly financial performance:")
+print(quarterly_financial)
+
+query_quarterly_performance = """
+SELECT
+    pr.program_name,
+    CAST(strftime('%Y', p.reporting_date) AS INTEGER)
+        AS reporting_year,
+    ((CAST(strftime('%m', p.reporting_date) AS INTEGER) - 1) / 3) + 1
+        AS reporting_quarter,
+    COUNT(p.participant_id) AS total_participants,
+    ROUND(
+        100.0 * SUM(
+            CASE
+                WHEN p.program_completed = 'Yes' THEN 1
+                ELSE 0
+            END
+        ) / COUNT(p.participant_id),
+        2
+    ) AS completion_rate,
+    ROUND(
+        AVG(p.satisfaction_score),
+        2
+    ) AS average_satisfaction,
+    ROUND(
+        AVG(p.outcome_change),
+        2
+    ) AS average_outcome_change
+FROM participants AS p
+JOIN programs AS pr
+    ON p.program_id = pr.program_id
+GROUP BY
+    pr.program_name,
+    reporting_year,
+    reporting_quarter
+ORDER BY
+    pr.program_name,
+    reporting_year,
+    reporting_quarter;
+"""
+
+quarterly_performance = pd.read_sql_query(
+    query_quarterly_performance,
+    conn
+)
+
+print("\nQuarterly program performance:")
+print(quarterly_performance)
+
+# ==========================================
+# INTEGRATED MANAGEMENT REPORTING
+# ==========================================
+
+query_management_report = """
+WITH performance AS (
+    SELECT
+        p.program_id,
+        CAST(
+            strftime('%Y', p.reporting_date)
+            AS INTEGER
+        ) AS reporting_year,
+        (
+            (
+                CAST(
+                    strftime('%m', p.reporting_date)
+                    AS INTEGER
+                ) - 1
+            ) / 3
+        ) + 1 AS reporting_quarter,
+
+        COUNT(p.participant_id)
+            AS total_participants,
+
+        ROUND(
+            100.0 * SUM(
+                CASE
+                    WHEN p.program_completed = 'Yes'
+                    THEN 1
+                    ELSE 0
+                END
+            ) / COUNT(p.participant_id),
+            2
+        ) AS completion_rate,
+
+        ROUND(
+            AVG(p.satisfaction_score),
+            2
+        ) AS average_satisfaction,
+
+        ROUND(
+            AVG(p.outcome_change),
+            2
+        ) AS average_outcome_change
+
+    FROM participants AS p
+
+    GROUP BY
+        p.program_id,
+        reporting_year,
+        reporting_quarter
+)
+
+SELECT
+    pr.program_name,
+    pf.reporting_year,
+    pf.reporting_quarter,
+
+    perf.total_participants,
+    perf.completion_rate,
+    perf.average_satisfaction,
+    perf.average_outcome_change,
+
+    pf.program_budget,
+    pf.actual_expenditure,
+    pf.budget_variance
+
+FROM program_financials AS pf
+
+JOIN programs AS pr
+    ON pf.program_id = pr.program_id
+
+LEFT JOIN performance AS perf
+    ON pf.program_id = perf.program_id
+    AND pf.reporting_year = perf.reporting_year
+    AND pf.reporting_quarter = perf.reporting_quarter
+
+ORDER BY
+    pr.program_name,
+    pf.reporting_year,
+    pf.reporting_quarter;
+"""
+
+management_report = pd.read_sql_query(
+    query_management_report,
+    conn
+)
+
+print("\n=== INTEGRATED MANAGEMENT REPORT ===")
+print(management_report)
+
+print(
+    "\nManagement report missing values:"
+)
+
+print(
+    management_report.isnull().sum()
+)
+
+management_report.to_csv(
+    "output/management_report.csv",
+    index=False
+)
+
+print(
+    "\nCreated: output/management_report.csv"
+)
 
 # ==========================================
 # 9. DATA VISUALISATION

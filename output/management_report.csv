@@ -1,0 +1,13 @@
+program_name,reporting_year,reporting_quarter,total_participants,completion_rate,average_satisfaction,average_outcome_change,program_budget,actual_expenditure,budget_variance
+Community Support,2025,1,6,100.0,2.83,11.67,109817.0,95740.0,14077.0
+Community Support,2025,2,12,91.67,2.92,11.33,136881.0,123332.0,13549.0
+Community Support,2025,3,7,85.71,3.29,10.0,93173.0,102249.0,-9076.0
+Community Support,2025,4,10,60.0,3.5,17.6,101805.0,101430.0,375.0
+Family Support,2025,1,5,100.0,2.4,12.0,100232.0,85135.0,15097.0
+Family Support,2025,2,9,77.78,3.0,14.44,141537.0,138905.0,2632.0
+Family Support,2025,3,6,66.67,3.33,14.33,124375.0,130424.0,-6049.0
+Family Support,2025,4,6,50.0,3.5,9.0,90527.0,92059.0,-1532.0
+Youth Support,2025,1,10,60.0,3.1,11.9,149942.0,154846.0,-4904.0
+Youth Support,2025,2,14,85.71,2.79,11.14,121505.0,133483.0,-11978.0
+Youth Support,2025,3,10,90.0,3.6,13.6,84705.0,69189.0,15516.0
+Youth Support,2025,4,5,80.0,3.8,13.2,110771.0,109604.0,1167.0

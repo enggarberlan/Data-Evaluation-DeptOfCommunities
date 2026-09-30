@@ -1,0 +1,13 @@
+program_type,reporting_year,reporting_quarter,program_budget,actual_expenditure,budget_variance,calculated_variance
+Family Support,2025,1,100232,85135,15097,15097
+Family Support,2025,2,141537,138905,2632,2632
+Family Support,2025,3,124375,130424,-6049,-6049
+Family Support,2025,4,90527,92059,-1532,-1532
+Youth Support,2025,1,149942,154846,-4904,-4904
+Youth Support,2025,2,121505,133483,-11978,-11978
+Youth Support,2025,3,84705,69189,15516,15516
+Youth Support,2025,4,110771,109604,1167,1167
+Community Support,2025,1,109817,95740,14077,14077
+Community Support,2025,2,136881,123332,13549,13549
+Community Support,2025,3,93173,102249,-9076,-9076
+Community Support,2025,4,101805,101430,375,375
